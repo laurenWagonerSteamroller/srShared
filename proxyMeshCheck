@@ -1,0 +1,46 @@
+import maya.cmds as cmds
+
+
+# ---------------- Proxy Mesh Checker ---------------- #
+#    Checks every Face in Selected Geo and determines  #
+#           if it has more than 4 vertices             #
+# ---------------------------------------------------- #
+
+
+def validate():
+    # Identify Selected Proxy Mesh
+    selection = cmds.ls(sl=True)
+
+    # Count total number of Faces in Selected Proxy Mesh
+    total_faces = cmds.polyEvaluate(selection, face=True)
+
+    # Faces and Vertices Lists for Faces with More Than 4 Vertices to Select From Later...
+    faces = []
+    vertices = []
+
+    # Loop Through Each Face and Determine Number of Vertices For Each
+    for x in range(total_faces):
+        face = '{}.f[{}]'.format(''.join(selection), x)
+        number_of_verts = cmds.polyListComponentConversion(face, fromFace=True, toVertex=True)
+        verts = cmds.ls(number_of_verts, fl=True)
+        cmds.select(cl=True)
+
+        # If Number of Vertices in Face is More Than 4, Append them to the Vertices List
+        if len(verts) > 4:
+            faces.append(face)
+            vertices.append(verts)
+
+    # Select Faces and Vertices List if Exists; If Not then Skip
+    if vertices:
+        for vert, face in zip(vertices, faces):
+            cmds.select(vert, face, add=True)
+
+            if vert is vertices[-1]:
+                print('')
+                print('!! This Proxy Mesh needs cleanup in these selected areas. !!')
+
+    else:
+        print('')
+        print('This Proxy Mesh is CLEAN. :)')
+
+    return
