@@ -1,17 +1,40 @@
+import sys
 import maya.cmds as cmds
 
 
-# ---------------- Proxy Mesh Checker ---------------- #
-#    Checks every Face in Selected Geo and determines  #
-#           if it has more than 4 vertices             #
-# ---------------------------------------------------- #
+# ------------------ Proxy Mesh Checker ------------------- #
+#   Checks and determines if the Selected Mesh (Proxy Mesh) #
+#              has nGons, Holes, and History.               #
+# --------------------------------------------------------- #
 
 
 def validate():
     # Identify Selected Proxy Mesh
     selection = cmds.ls(sl=True)
+    if not selection:
+        print('')
+        print('!! You need to select a Polygon Mesh (Proxy Mesh) to run this tool. !!')
+        sys.exit()
 
-    # Count total number of Faces in Selected Proxy Mesh
+    # CHECK FOR HISTORY ON MESH ----------------------------------------------------------------------------------------
+    history = cmds.listHistory(selection, pruneDagObjects=True)
+    history_inputs = []
+
+    if history:
+        for inputs in history:
+            node = cmds.nodeType(inputs)
+
+            # Ignore the Proxy Mesh Shape as a History Input; and if the Inputs are Not Shapes then give an Error
+            if node is not 'groupId' and 'shadingEngine':
+                history_inputs.append(inputs)
+
+    if history_inputs:
+        print('----------------------------')
+        print('')
+        print('!! There is History on the Proxy Mesh. !!')
+        print('')
+
+    # CHECK FOR NGONS --------------------------------------------------------------------------------------------------
     total_faces = cmds.polyEvaluate(selection, face=True)
 
     # Faces and Vertices Lists for Faces with More Than 4 Vertices to Select From Later...
@@ -30,17 +53,60 @@ def validate():
             faces.append(face)
             vertices.append(verts)
 
-    # Select Faces and Vertices List if Exists; If Not then Skip
-    if vertices:
-        for vert, face in zip(vertices, faces):
-            cmds.select(vert, face, add=True)
+    # CHECK FOR OPEN BORDER EDGES --------------------------------------------------------------------------------------
+    total_edges = cmds.polyEvaluate(selection, edge=True)
 
-            if vert is vertices[-1]:
+    # Borders List for Selection Later...
+    borders = []
+
+    # Get Border Edges from Edges
+    for x in range(total_edges):
+        border = cmds.polySelect(selection, edgeBorder=x, noSelection=True, asSelectString=True)
+        if border:
+            borders.append(border)
+
+    # Select Faces, Vertices and Borders Lists if Exists; If Not then Skip ---------------------------------------------
+    selection_types = [vertices, faces, borders]
+    checks = []
+    check_types = []
+
+    # Save Loop Check Amount By Appending Only Checks that Exist
+    for check in selection_types:
+        if check:
+            checks.append(check)
+
+            if check is vertices:
+                check_types.append('{} nGons Found'.format(len(faces)))
+            if check is borders:
+                check_types.append('Holes Found')
+
+    # Select Checks If They Exist, If No Checks Are Available then the Proxy Mesh is Clean!
+    if checks:
+        for item in checks:
+            for x in range(len(item)):
+                cmds.select(item[x], add=True)
+    
+                # Turn On Border Edges for Visual
+                cmds.polyOptions(selection, displayBorder=True, sizeBorder=7)
+
+            if item is checks[-1]:
+                print('----------------------------')
                 print('')
-                print('!! This Proxy Mesh needs cleanup in these selected areas. !!')
+                print('!! This Proxy Mesh needs CLEANUP in these selected areas. :( !!')
+                print('Identified:')
+                print('')
+                for types in check_types:
+                    print(types)
+                print('')
+                print('----------------------------')
 
     else:
+        # Turn Off Border Edges
+        cmds.polyOptions(selection, displayBorder=False, sizeBorder=2)
+        print('----------------------------')
         print('')
         print('This Proxy Mesh is CLEAN. :)')
+        print('')
+        print('----------------------------')
 
     return
